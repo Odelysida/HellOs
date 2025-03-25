@@ -42,5 +42,5 @@ Enter_long_mode:
     or ebx, 0x80000001              ; by enabling paging and protection simultaneously
     mov cr0, ebx
     lgdt [GDT.Pointer]              ; load GDT.Pointer
-    jmp CODE_SEG:Kernel             ; Load cs with 64 bit segment and flush the instruction cache.
+    jmp CODE_SEG:kernel_entry             ; Load cs with 64 bit segment and flush the instruction cache.
 

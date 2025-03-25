@@ -1,0 +1,37 @@
+[OzMoz - Operating System]
+
+dependencies:
+- Kernel
+- Net
+- VGA
+- Sound
+- Bootloader 
+- Terminal 
+- TextEdit "0_Dit"
+
+
+
+-> Ring 0 operations
+-> FullHD Support 
+-> Terminal Only (Screen splitting enabled)
+-> runnable on modern processor platforms (x64 13th gen w/all instructions)
+
+
+steps:
+
+write bootloader in c and asm 
+    -> boot from disk (a:)
+    -> write bootloader to HDD / Boot Sector       
+    -> bootloader should hook and run kernel from Kernel/run.c
+    -> kernel operates and builds system dependencies (vga/sound/net)
+    -> kernel boots up terminal for user interaction
+
+commands:
+
+ls
+md
+rm
+cp
+mv
+ned
+

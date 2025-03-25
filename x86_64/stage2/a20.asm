@@ -60,14 +60,13 @@ Check_A20:
     call Real_mode_check_A20
     test ax, ax
     jnz .a20_enabled
-        mov si, a20_enabled_message 
+        mov si, a20_disabled_message 
         call Real_mode_println
         ret
     .a20_enabled:
         mov si, a20_enabled_message
         call Real_mode_println
-        ret       
-
+        ret 
 
 
 Real_mode_check_A20:
@@ -103,7 +102,7 @@ Real_mode_check_A20:
                             ; (as the write to [ds:si] really occoured to 00500).
 
     mov ax, 0               ; A20 disabled ([es:di] equal to oxFF).
-    je .a20_disabled 
+    je .a20_disabled
     mov ax, 1               ; A20 enabled
    .a20_disabled:
 
@@ -173,7 +172,7 @@ Enable_A20_using_Keyboard_Controller:
     cli                     ; Clear interrupts
     call  a20wait
     mov   al, 0xAD            ; disabled keyboard.
-    pout  0x64, al
+    out  0x64, al
     call  a20wait
     mov   al, 0xD0            ; Read from input
     out   0x64, al
@@ -206,7 +205,6 @@ a20wait2:
     jz     a20wait2
     ret
 
-
 ;*********************************************************************;
 ; Enable A20 Line via IO port 92h (Fast A20 method)                   ;
 ;---------------------------------------------------------------------;
@@ -217,17 +215,17 @@ a20wait2:
 ;---------------------------------------------------------------------;
 ; Bit 0 - Setting to 1 causes a fast reset                            ;
 ; Bit 1 - 0: disable A20, 1: enable A20                               ;
-; Bit 2 - Manufacturer defined                                        ;      
+; Bit 2 - Manufacturer defined                                        ;
 ; Bit 3 - power on password bytes. 0: accessible, 1: inaccessible     ;
 ; Bits 4-5 - Manufacturer defined                                     ;
 ; Bits 6-7 - 00: HDD activity LED off, 01 or any value is "on"        ;
 ;*********************************************************************;
 Enable_A20_using_IO_port_92:
-    in     al, 0x92         ; Read from port 0x92
-    test   al, 2            ; Check if bit 1 (i.e. the 2nd bit) is set
-    jnz    .end             ; if bit 1 is already set dont do anything
-    or     al, 2            ; Activate bit 1
-    and    al, 0xFE         ; make sure bit 0 is 0 (it causes fast reset)
-    out    0x92, al         ; write to port 0x92
+    in al, 0x92         ; Read from port 0x92
+    test al, 2          ; Check if bit 1 (i.e. the 2nd bit) is set
+    jnz .end            ; if bit 1 is already set dont do anything
+    or al, 2            ; Activate bit 1
+    and al, 0xFE        ; make sure bit 0 is 0 (it causes fast reset)
+    out 0x92, al        ; write to port 0x92
    .end:
     ret
