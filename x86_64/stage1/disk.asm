@@ -55,13 +55,13 @@ Real_mode_read_disk:
         call Real_mode_read_disk
         popa
         add eax, 127
-        add dx, 127 * 512 / 16
+        add dx, 4064
         jmp .start
 
     .good_size:
-        mov [DAP.LBA_lower],   ax
+        mov [DAP.LBA_lower],   eax
         mov [DAP.num_sectors], cx
-        mov [DAP.buf_segment], bx
+        mov [DAP.buf_segment], dx
         mov [DAP.buf_offset], bx
         mov dl, [disk]
         mov si, DAP

@@ -1,0 +1,750 @@
+     1                                  stage1_start:           ; Define start label for stage1
+     2                                  stage1_entrypoint:
+     3 00000000 EA[5F00]0000                jmp 0x0000:setup_segments
+     4 00000005 00<rep 5Ah>                 times 90 db 0           ; BPB (Bios Parameter Block)
+     5                                      %include "stage1/bootstage1.asm"
+     6                              <1> BITS 16         ; ON x86, BIOS runs in 16 BIT Real Mode.
+     7                              <1> ORG 0x7C00      ; We are loaded/booted by BIOS into this Memory Address
+     8                              <1> 
+     9                              <1>            
+    10                              <1> setup_segments:
+    11 0000005F 31C0                <1>     xor ax, ax          ; Clear AX
+    12 00000061 8ED0                <1>     mov ss, ax
+    13 00000063 8ED8                <1>     mov ds, ax
+    14 00000065 8EC0                <1>     mov es, ax
+    15 00000067 8EE0                <1>     mov fs, ax
+    16 00000069 8EE8                <1>     mov gs, ax
+    17                              <1> 
+    18 0000006B BC007C              <1>     mov sp, 0x7C00      ; Set up stack pointer
+    19 0000006E FC                  <1>     cld                 ; Clear direction flag
+    20                              <1> 
+    21                              <1>     ; Load stage2 from disk into RAM
+    22 0000006F 8816[8D00]          <1>     mov [disk], dl
+    23 00000073 B80100              <1>     mov ax, 1           ; Starting sector
+    24 00000076 B90200              <1>     mov cx, 2           ; Number of sectors to read (pre-calculated)
+    25 00000079 BB[0002]            <1>     mov bx, stage2_start
+    26 0000007C 31D2                <1>     xor dx, dx
+    27 0000007E E82A00              <1>     call Real_mode_read_disk
+    28                              <1> 
+    29                              <1>     ; Print first stage finished
+    30 00000081 BE[ED00]            <1>     mov si, stage1_message
+    31 00000084 E88C00              <1>     call Real_mode_println
+    32                              <1> 
+    33 00000087 E97601              <1>     jmp stage2_entrypoint
+    34                              <1>     ; Infinite loop
+    35                              <1> halt:
+    36 0000008A F4                  <1>     hlt
+    37 0000008B EBFD                <1>     jmp halt
+    38                              <1> 
+    39                              <1>     ; Set up TemporayStack so growi
+    40                              <1> ; Include
+    41                              <1> %include "stage1/disk.asm"
+    42                              <2> BITS 16
+    43                              <2> 
+    44                              <2> 
+    45                              <2> ; --- Initialized Data ----------------------------------------------------------
+    46                              <2> 
+    47 0000008D 80                  <2> disk db 0x80
+    48                              <2> 
+    49 0000008E 0B00                <2> disk_error_message dw 11
+    50 00000090 4469736B206572726F- <2> db 'Disk error!'
+    50 00000099 7221                <2>
+    51                              <2> 
+    52                              <2> 
+    53                              <2> DAP:
+    54                              <2> 
+    55                              <2> ;*******************************************************************************;
+    56                              <2> ; Disk Address Packet                                                           ;
+    57                              <2> ;-------------------------------------------------------------------------------;
+    58                              <2> ; Offset  Size   Description                                                    ;
+    59                              <2> ;   0       1    size of packet (16 bytes)                                      ;
+    60                              <2> ;   1       1    always 0                                                       ;
+    61                              <2> ;   2       2    number of sectors to load (max = 127 on some BIOS)             ;
+    62                              <2> ;   4       2    16-bit offset of target buffer                                 ;
+    63                              <2> ;   4       2    16-bit segment of target buffer                                ;
+    64                              <2> ;   8       4    lower 32 bits of 48-bit starting LBA                           ;   
+    65                              <2> ;  12       4    upper 32 bits of 48-bit starting LBA                           ;
+    66                              <2> ;*******************************************************************************;
+    67                              <2> 
+    68                              <2> 
+    69 0000009B 10                  <2>               db 0x10 ; Size of Packet = 16 Bytes
+    70 0000009C 00                  <2>               db 0    ; always 0
+    71 0000009D 7F00                <2> .num_sectors: dw 127  ; Number of sectors to load (max = 127 on some BIOS)
+    72 0000009F 0000                <2> .buf_offset:  dw 0x0  ; 16-bit offset of target buffer
+    73 000000A1 0000                <2> .buf_segment: dw 0x0  ; 16-bit segment of target buffer
+    74 000000A3 00000000            <2> .LBA_lower:   dd 0x0  ; lower 32 bits of 48-bit starting LBA
+    75 000000A7 00000000            <2> .LBA_upper:   dd 0x0  ; upper 32 bits of 48-bit starting LBA
+    76                              <2> 
+    77                              <2> 
+    78                              <2> 
+    79                              <2> 
+    80                              <2> ; --- Code ----------------------------------------------------------------------
+    81                              <2> 
+    82                              <2> Real_mode_read_disk:
+    83                              <2> ;**********************************************************;
+    84                              <2> ; Load disk sectors to memory (int 13h, function code 42h) ;
+    85                              <2> ;----------------------------------------------------------;
+    86                              <2> ; ax: start sector                                         ;
+    87                              <2> ; cx: number of sectors (512 bytes) to read                ;
+    88                              <2> ; bx: offset of buffer                                     ;
+    89                              <2> ; dx: segment of buffer                                    ;
+    90                              <2> ;**********************************************************;
+    91                              <2>     .start: 
+    92 000000AB 83F97F              <2>         cmp cx, 127         ; (max sectors to read in one call = 127)
+    93 000000AE 7612                <2>         jbe .good_size
+    94 000000B0 60                  <2>         pusha
+    95 000000B1 B97F00              <2>         mov cx, 127
+    96 000000B4 E8F4FF              <2>         call Real_mode_read_disk
+    97 000000B7 61                  <2>         popa
+    98 000000B8 6683C07F            <2>         add eax, 127
+    99 000000BC 81C2E00F            <2>         add dx, 4064
+   100 000000C0 EBE9                <2>         jmp .start
+   101                              <2> 
+   102                              <2>     .good_size:
+   103 000000C2 66A3[A300]          <2>         mov [DAP.LBA_lower],   eax
+   104 000000C6 890E[9D00]          <2>         mov [DAP.num_sectors], cx
+   105 000000CA 8916[A100]          <2>         mov [DAP.buf_segment], dx
+   106 000000CE 891E[9F00]          <2>         mov [DAP.buf_offset], bx
+   107 000000D2 8A16[8D00]          <2>         mov dl, [disk]
+   108 000000D6 BE[9B00]            <2>         mov si, DAP
+   109 000000D9 B442                <2>         mov ah, 0x42
+   110 000000DB CD13                <2>         int 0x13
+   111 000000DD 7201                <2>         jc .print_error
+   112 000000DF C3                  <2>         ret
+   113                              <2>     .print_error:
+   114 000000E0 BE[8E00]            <2>         mov si, disk_error_message
+   115 000000E3 E82D00              <2>         call Real_mode_println
+   116 000000E6 F4                  <2>        .halt: hlt
+   117 000000E7 EBFD                <2>         jmp .halt   ; Infinite loop, cant recover from disk error
+   118                              <2> 
+   119                              <2> 
+    42                              <1> %include "stage1/print.asm"
+    43                              <2> BITS 16
+    44                              <2> 
+    45                              <2> ; --- Initialized data ------------------------------------------------------
+    46                              <2> 
+    47 000000E9 0200                <2> newline dw 2
+    48 000000EB 0D0A                <2> db 13, 10 ; \r\n
+    49                              <2> 
+    50 000000ED 1100                <2> stage1_message dw 17
+    51 000000EF 537461676520312066- <2> db 'Stage 1 finished.'
+    51 000000F8 696E69736865642E    <2>
+    52                              <2> 
+    53                              <2> 
+    54                              <2> ; --- Code ------------------------------------------------------------------
+    55                              <2> 
+    56                              <2> Real_mode_print:
+    57                              <2> ;*********************************************************************************;
+    58                              <2> ; Prints a string (in real mode)                                                  ;
+    59                              <2> ;---------------------------------------------------------------------------------;
+    60                              <2> ; si: pointer to string (first 16 bits = the number of characters in the string.) ;  
+    61                              <2> ;*********************************************************************************;
+    62                              <2> 
+    63 00000100 50                  <2>     push ax
+    64 00000101 51                  <2>     push cx
+    65 00000102 56                  <2>     push si
+    66 00000103 8B0C                <2>     mov  cx, word [si]      ; first 16 bits = number of chatacters in string
+    67 00000105 83C602              <2>     add si, 2
+    68                              <2>     .string_loop:
+    69 00000108 AC                  <2>         lodsb 
+    70 00000109 B40E                <2>         mov ah, 0eh
+    71 0000010B CD10                <2>         int 10h
+    72 0000010D E2F9                <2>     loop .string_loop, cx
+    73 0000010F 5E                  <2>     pop si
+    74 00000110 59                  <2>     pop cx
+    75 00000111 58                  <2>     pop ax
+    76 00000112 C3                  <2>     ret
+    77                              <2> 
+    78                              <2> 
+    79                              <2> Real_mode_println:
+    80                              <2> ;***********************************************************;
+    81                              <2> ; Prints a string (in real mode) and a newline (\r\n)       ;
+    82                              <2> ;-----------------------------------------------------------;
+    83                              <2> ; si: pointer to string                                     ;
+    84                              <2> ; (first 16 bits = the number of characters in the string.) ;  
+    85                              <2> ;***********************************************************;
+    86 00000113 56                  <2>     push si
+    87 00000114 E8E9FF              <2>     call Real_mode_print
+    88 00000117 BE[E900]            <2>     mov si, newline
+    89 0000011A E8E3FF              <2>     call Real_mode_print
+    90 0000011D 5E                  <2>     pop si
+    91 0000011E C3                  <2>     ret
+    92                              <2> 
+    43                              <1> 
+    44                              <1> 
+    45                              <1> 
+    46 0000011F 00<rep DFh>         <1> times 510-($-$$) db 0 ; Padding as always
+    47 000001FE 55                  <1> db 0x55                 ; Boot signature byte 1
+    48 000001FF AA                  <1> db 0xAA                 ; Boot signature byte 2
+    49                              <1> ; Last two Bytes
+    50                              <1> ; Otherwise Bios will throw a error Message that it didn`t find a bootable Disk.
+    51                              <1> 
+     6                                  stage1_end:
+     7                                  
+     8                                  stage2_start:
+     9                                  stage2_entrypoint:
+    10 00000200 EA[8602]0000                jmp 0x0000:setup_segments2
+    11                                      %include "stage2/bootstage2.asm"
+    12                              <1> BITS 16
+    13                              <1> 
+    14                              <1> ; --- Initialized data -----------------------------------------------------
+    15 00000205 1300                <1> stage2_message dw 19
+    16 00000207 456E746572696E6720- <1> db 'Entering Stage 2...'
+    16 00000210 537461676520322E2E- <1>
+    16 00000219 2E                  <1>
+    17 0000021A 1700                <1> long_mode_supported_message dw 23
+    18 0000021C 4C6F6E67206D6F6465- <1> db 'Long mode is supported.'
+    18 00000225 20697320737570706F- <1>
+    18 0000022E 727465642E          <1>
+    19 00000233 1B00                <1> long_mode_not_supported_message dw 27
+    20 00000235 4C6F6E67206D6F6465- <1> db 'Long mode is not supported.'
+    20 0000023E 206973206E6F742073- <1>
+    20 00000247 7570706F727465642E  <1>
+    21 00000250 1100                <1> prepare_paging_message dw 17
+    22 00000252 507265706172696E67- <1> db 'Preparing Paging.'
+    22 0000025B 20506167696E672E    <1>
+    23 00000263 0E00                <1> remapping_pic_message dw 14
+    24 00000265 52656D617070696E67- <1> db 'Remapping PIC.'
+    24 0000026E 205049432E          <1>
+    25 00000273 1200                <1> executing_kernel_message dw 18
+    26 00000275 457865637574696E67- <1> db 'Executing Kernel.'
+    26 0000027E 204B65726E656C2E    <1>
+    27                              <1> 
+    28                              <1> 
+    29                              <1> ; --- Code -----------------------------------------------------------------
+    30                              <1> setup_segments2:
+    31                              <1>     ; Print "entering Stage2..." Message
+    32 00000286 BE[0502]            <1>     mov si, stage2_message
+    33 00000289 E887FE              <1>     call Real_mode_println
+    34                              <1> 
+    35                              <1>     ; Check if long mode is supported
+    36 0000028C E88F02              <1>     call Is_longmode_supported
+    37 0000028F 6685C0              <1>     test eax, eax
+    38 00000292 741E                <1>     jz .long_mode_not_supported
+    39 00000294 BE[1A02]            <1>     mov si, long_mode_supported_message
+    40 00000297 E879FE              <1>     call Real_mode_println
+    41                              <1> 
+    42                              <1>     ; Enable Gate A20
+    43 0000029A E8BC00              <1>     call Enable_A20
+    44                              <1>     ; Prepare paging
+    45 0000029D BE[5002]            <1>     mov si, prepare_paging_message
+    46 000002A0 E870FE              <1>     call Real_mode_println
+    47                              <1> 
+    48 000002A3 E8E601              <1>     call Prepare_paging
+    49                              <1> 
+    50                              <1> 
+    51                              <1>     ; Remap PIC
+    52 000002A6 BE[6302]            <1>     mov si, remapping_pic_message
+    53 000002A9 E867FE              <1>     call Real_mode_println
+    54 000002AC E84202              <1>     call Remap_PIC
+    55                              <1>     ; Enter long mode
+    56 000002AF E89202              <1>     call Enter_long_mode
+    57                              <1> 
+    58                              <1>     .long_mode_not_supported:
+    59 000002B2 BE[3302]            <1>         mov si, long_mode_not_supported_message
+    60 000002B5 E85BFE              <1>         call Real_mode_println
+    61 000002B8 F4                  <1>        .halt: hlt ; Infinite loop. 
+    62 000002B9 EBFD                <1>         jmp .halt ; (It prevents us from going off in memory and executing junk).
+    63                              <1> 
+    64                              <1> 
+    65                              <1> ; Includes 
+    66                              <1> 
+    67                              <1> %include "stage2/a20.asm"
+    68                              <2> BITS 16
+    69                              <2> 
+    70                              <2> ; --- Initialized Data ------------------------------------------------
+    71 000002BB 0F00                <2> a20_enabled_message dw 15
+    72 000002BD 41323020697320656E- <2> db 'A20 is enabled.'
+    72 000002C6 61626C65642E        <2>
+    73 000002CC 1000                <2> a20_disabled_message dw 16
+    74 000002CE 413230206973206469- <2> db 'A20 is disabled.'
+    74 000002D7 7361626C65642E      <2>
+    75 000002DE 2200                <2> a20_trying_bios dw 34
+    76 000002E0 547279696E6720746F- <2> db 'Trying to enable A20 using BIOS...'
+    76 000002E9 20656E61626C652041- <2>
+    76 000002F2 3230207573696E6720- <2>
+    76 000002FB 42494F532E2E2E      <2>
+    77 00000302 3100                <2> a20_trying_keyb dw 49
+    78 00000304 547279696E6720746F- <2> db 'Trying to enable A20 using Keyboard Controller'
+    78 0000030D 20656E61626C652041- <2>
+    78 00000316 3230207573696E6720- <2>
+    78 0000031F 4B6579626F61726420- <2>
+    78 00000328 436F6E74726F6C6C65- <2>
+    78 00000331 72                  <2>
+    79 00000332 2800                <2> a20_trying_io92 dw 40
+    80 00000334 547279696E6720746F- <2> db 'Trying to enable A20 using IO Port 92'
+    80 0000033D 20656E61626C652041- <2>
+    80 00000346 3230207573696E6720- <2>
+    80 0000034F 494F20506F72742039- <2>
+    80 00000358 32                  <2>
+    81                              <2> 
+    82                              <2> 
+    83                              <2> ; --- Code ------------------------------------------------------------
+    84                              <2> Enable_A20:
+    85 00000359 E83800              <2>     call Check_A20          ; Check if A20 is already enabled.
+    86 0000035C 85C0                <2>     test ax, ax
+    87 0000035E 7533                <2>     jnz .end
+    88                              <2> 
+    89                              <2> 
+    90                              <2>     ; Try to enable A20 using BIOS.
+    91 00000360 BE[DE02]            <2>     mov si, a20_trying_bios
+    92 00000363 E8ADFD              <2>     call Real_mode_println
+    93 00000366 E87F00              <2>     call Enable_A20_using_BIOS
+    94                              <2> 
+    95 00000369 E82800              <2>     call Check_A20          ; Check if A20 is enabled.
+    96 0000036C 85C0                <2>     test ax, ax
+    97 0000036E 7523                <2>     jnz .end
+    98                              <2> 
+    99                              <2> 
+   100                              <2>     ; Try to enable A20 using eEyboard Controller
+   101 00000370 BE[0203]            <2>     mov si, a20_trying_keyb
+   102 00000373 E89DFD              <2>     call Real_mode_println
+   103 00000376 E8A500              <2>     call Enable_A20_using_Keyboard_Controller
+   104                              <2> 
+   105 00000379 E81800              <2>     call Check_A20
+   106 0000037C 85C0                <2>     test ax, ax
+   107 0000037E 7513                <2>     jnz .end
+   108                              <2> 
+   109                              <2>     ; Try to enable A20 using IO Port 92h (fast A20 method).
+   110 00000380 BE[3203]            <2>     mov si, a20_trying_io92
+   111 00000383 E88DFD              <2>     call Real_mode_println
+   112 00000386 E89500              <2>     call Enable_A20_using_Keyboard_Controller
+   113                              <2> 
+   114 00000389 E80800              <2>     call Check_A20
+   115 0000038C 85C0                <2>     test ax, ax
+   116 0000038E 7503                <2>     jnz .end
+   117 00000390 F4                  <2>    .halt: hlt
+   118 00000391 EBFD                <2>     jmp .halt
+   119                              <2>    .end:
+   120 00000393 C3                  <2>     ret
+   121                              <2> 
+   122                              <2> 
+   123                              <2> Check_A20:
+   124                              <2> ;********************************************************************;
+   125                              <2> ; Check the status of the A20 line                                   ;
+   126                              <2> ;********************************************************************;
+   127 00000394 E81200              <2>     call Real_mode_check_A20
+   128 00000397 85C0                <2>     test ax, ax
+   129 00000399 7507                <2>     jnz .a20_enabled
+   130 0000039B BE[CC02]            <2>         mov si, a20_disabled_message 
+   131 0000039E E872FD              <2>         call Real_mode_println
+   132 000003A1 C3                  <2>         ret
+   133                              <2>     .a20_enabled:
+   134 000003A2 BE[BB02]            <2>         mov si, a20_enabled_message
+   135 000003A5 E86BFD              <2>         call Real_mode_println
+   136 000003A8 C3                  <2>         ret 
+   137                              <2> 
+   138                              <2> 
+   139                              <2> Real_mode_check_A20:
+   140                              <2> ;**************************************************************************;
+   141                              <2> ; Check the status of the A20 line (in real mode)                          ;
+   142                              <2> ;--------------------------------------------------------------------------;
+   143                              <2> ; Returns: ax = 0 if the a20 line is disabled (memory wraps around)        ;
+   144                              <2> ;          ax = 1 if the a20 line is enabled (memory does not wrap around) ;
+   145                              <2> ;**************************************************************************;
+   146 000003A9 9C                  <2>     pushf
+   147 000003AA 1E                  <2>     push ds
+   148 000003AB 06                  <2>     push es
+   149 000003AC 57                  <2>     push di
+   150 000003AD 56                  <2>     push si
+   151 000003AE FA                  <2>     cli                     ; Clear Interrupts
+   152                              <2> 
+   153 000003AF 31C0                <2>     xor ax, ax              ; ax = 0
+   154 000003B1 8EC0                <2>     mov es, ax              ; es = 0
+   155 000003B3 F7D0                <2>     not ax                  ; ax = 0xFFFF
+   156 000003B5 8ED8                <2>     mov ds, ax              ; ds = 0xFFFF
+   157 000003B7 BF0005              <2>     mov di, 0x0500          ; 0500 and 0510 are chosen since they are guaranteed to be free
+   158 000003BA BE1005              <2>     mov si, 0x0510          ; for use at any point of time after BIOS initialization
+   159                              <2> 
+   160                              <2>     ; save the original values found at these addresses.
+   161 000003BD 268A15              <2>     mov dl, byte [es:di]
+   162 000003C0 52                  <2>     push dx
+   163 000003C1 3E8A14              <2>     mov dl, byte [ds:si]
+   164 000003C4 52                  <2>     push dx
+   165                              <2> 
+   166 000003C5 26C60500            <2>     mov byte [es:di], 0x00  ; [es:di] is 0:0500
+   167 000003C9 3EC604FF            <2>     mov byte [ds:si], 0xFF  ; [ds:si] is FFFF:0510
+   168 000003CD 26803DFF            <2>     cmp byte [es:di], 0xFF  ; if the A20 line is disabled, [es:di] will contain 0xFF
+   169                              <2>                             ; (as the write to [ds:si] really occoured to 00500).
+   170                              <2> 
+   171 000003D1 B80000              <2>     mov ax, 0               ; A20 disabled ([es:di] equal to oxFF).
+   172 000003D4 7403                <2>     je .a20_disabled
+   173 000003D6 B80100              <2>     mov ax, 1               ; A20 enabled
+   174                              <2>    .a20_disabled:
+   175                              <2> 
+   176                              <2>    ; restore original values
+   177 000003D9 5A                  <2>     pop dx
+   178 000003DA 3E8814              <2>     mov byte [ds:si], dl
+   179 000003DD 5A                  <2>     pop dx
+   180 000003DE 268815              <2>     mov byte [es:di], dl
+   181                              <2> 
+   182 000003E1 5E                  <2>     pop si
+   183 000003E2 5F                  <2>     pop di
+   184 000003E3 07                  <2>     pop es
+   185 000003E4 1F                  <2>     pop ds
+   186 000003E5 9D                  <2>     popf
+   187 000003E6 FB                  <2>     sti                     ; Enable interrupts
+   188 000003E7 C3                  <2>     ret
+   189                              <2> 
+   190                              <2> 
+   191                              <2> Enable_A20_using_BIOS:
+   192                              <2> ;*************************************************************;
+   193                              <2> ; Try to enable A20 gate using the BIOS (int 15h, ax = 2401h) ;
+   194                              <2> ;-------------------------------------------------------------;
+   195                              <2> ; Returns: ax = 0 (Failure)                                   ;
+   196                              <2> ;          ax = 1 (Success)                                   ;
+   197                              <2> ;*************************************************************;
+   198 000003E8 B80324              <2>     mov ax, 2403h           ; Query A20 Gate Support (ie. later PS/2s systems)
+   199 000003EB CD15                <2>     int 15h
+   200 000003ED 7225                <2>     jb .failure             ; INT 15h is not supported
+   201 000003EF 80FC00              <2>     cmp ah, 0
+   202 000003F2 7520                <2>     jnz .failure            ; INT 15h is not supported
+   203 000003F4 B80224              <2>     mov ax, 2402h           ; Get A20 gate Status
+   204 000003F7 CD15                <2>     int 15h
+   205 000003F9 7219                <2>     jb .failure             ; couldnt get status
+   206 000003FB 80FC00              <2>     cmp ah, 0
+   207 000003FE 7514                <2>     jnz .failure            ; couldnt get status
+   208 00000400 3C01                <2>     cmp al, 1
+   209 00000402 740C                <2>     jz .success             ; A20 is already activated
+   210 00000404 B80124              <2>     mov ax, 2401h           ; Enable A20 gate
+   211 00000407 CD15                <2>     int 15h
+   212 00000409 7209                <2>     jb .failure             ; Couldnt enable A20 Gate
+   213 0000040B 80FC00              <2>     cmp ah, 0
+   214 0000040E 7504                <2>     jnz .failure            ; couldnt enable A20 Gate
+   215                              <2>    .success:
+   216 00000410 B80100              <2>         mov ax, 1
+   217 00000413 C3                  <2>         ret
+   218                              <2>    .failure:
+   219 00000414 B80000              <2>         mov ax, 0
+   220 00000417 C3                  <2>         ret
+   221                              <2> 
+   222                              <2> 
+   223                              <2> Disable_A20_using_BIOS:
+   224                              <2> ;**************************************************************;
+   225                              <2> ; Try to disable A20 gate using the BIOS (int 15h, ax = 2400h) ;
+   226                              <2> ;**************************************************************;
+   227 00000418 B80024              <2>     mov ax, 2400h
+   228 0000041B CD15                <2>     int 15h
+   229 0000041D C3                  <2>     ret
+   230                              <2> 
+   231                              <2> 
+   232                              <2> Enable_A20_using_Keyboard_Controller:
+   233                              <2> ;******************************************************************;
+   234                              <2> ; Try to enable A20 line using the Keyboard Controller (chip 8042) ;
+   235                              <2> ;------------------------------------------------------------------;
+   236                              <2> ; Returns: ax = 0 (Failure)                                        ;
+   237                              <2> ;          ax = 1 (Success)                                        ;
+   238                              <2> ;******************************************************************;
+   239 0000041E FA                  <2>     cli                     ; Clear interrupts
+   240 0000041F E82E00              <2>     call  a20wait
+   241 00000422 B0AD                <2>     mov   al, 0xAD            ; disabled keyboard.
+   242 00000424 E664                <2>     out  0x64, al
+   243 00000426 E82700              <2>     call  a20wait
+   244 00000429 B0D0                <2>     mov   al, 0xD0            ; Read from input
+   245 0000042B E664                <2>     out   0x64, al
+   246 0000042D E82700              <2>     call  a20wait2
+   247 00000430 E460                <2>     in    al, 0x60
+   248 00000432 6650                <2>     push  eax
+   249 00000434 E81900              <2>     call  a20wait
+   250 00000437 B0D1                <2>     mov   al, 0xD1            ; Write to output
+   251 00000439 E664                <2>     out   0x64, al
+   252 0000043B E81200              <2>     call  a20wait
+   253 0000043E 6658                <2>     pop   eax
+   254 00000440 0C02                <2>     or    al, 2
+   255 00000442 E660                <2>     out   0x60, al
+   256 00000444 E80900              <2>     call  a20wait
+   257 00000447 B0AE                <2>     mov   al, 0xAE            ; Enable Keyboard
+   258 00000449 E664                <2>     out   0x64, al
+   259 0000044B E80200              <2>     call  a20wait
+   260 0000044E FB                  <2>     sti                     ; enable interrupts
+   261 0000044F C3                  <2>     ret
+   262                              <2> 
+   263                              <2> a20wait:
+   264 00000450 E464                <2>     in     al, 0x64
+   265 00000452 A801                <2>     test   al, 1
+   266 00000454 7501                <2>     jnz    a20wait2
+   267 00000456 C3                  <2>     ret
+   268                              <2> 
+   269                              <2> a20wait2:
+   270 00000457 E464                <2>     in     al, 0x64
+   271 00000459 A801                <2>     test   al, 1
+   272 0000045B 74FA                <2>     jz     a20wait2
+   273 0000045D C3                  <2>     ret
+   274                              <2> 
+   275                              <2> ;*********************************************************************;
+   276                              <2> ; Enable A20 Line via IO port 92h (Fast A20 method)                   ;
+   277                              <2> ;---------------------------------------------------------------------;
+   278                              <2> ; This method is quite dangerous because it may cause conflicts with  ;
+   279                              <2> ; some hardware devices forcing the system to halt.                   ;
+   280                              <2> ;=====================================================================;
+   281                              <2> ; Bits of port 92h                                                    ;
+   282                              <2> ;---------------------------------------------------------------------;
+   283                              <2> ; Bit 0 - Setting to 1 causes a fast reset                            ;
+   284                              <2> ; Bit 1 - 0: disable A20, 1: enable A20                               ;
+   285                              <2> ; Bit 2 - Manufacturer defined                                        ;
+   286                              <2> ; Bit 3 - power on password bytes. 0: accessible, 1: inaccessible     ;
+   287                              <2> ; Bits 4-5 - Manufacturer defined                                     ;
+   288                              <2> ; Bits 6-7 - 00: HDD activity LED off, 01 or any value is "on"        ;
+   289                              <2> ;*********************************************************************;
+   290                              <2> Enable_A20_using_IO_port_92:
+   291 0000045E E492                <2>     in al, 0x92         ; Read from port 0x92
+   292 00000460 A802                <2>     test al, 2          ; Check if bit 1 (i.e. the 2nd bit) is set
+   293 00000462 7506                <2>     jnz .end            ; if bit 1 is already set dont do anything
+   294 00000464 0C02                <2>     or al, 2            ; Activate bit 1
+   295 00000466 24FE                <2>     and al, 0xFE        ; make sure bit 0 is 0 (it causes fast reset)
+   296 00000468 E692                <2>     out 0x92, al        ; write to port 0x92
+   297                              <2>    .end:
+   298 0000046A C3                  <2>     ret
+    68                              <1> %include "stage2/paging.asm"
+    69                              <2> BITS 16
+    70                              <2> 
+    71                              <2> ; --- Define -------------------------------------------------------------------
+    72                              <2> %define PAGE_PRESENT (1 << 0)
+    73                              <2> %define PAGE_WRITE   (1 << 1)
+    74                              <2> %define CODE_SEG     0x0008
+    75                              <2> %define PAGING_DATA  0x9000
+    76                              <2> 
+    77                              <2> ; --- Initialized Data ---------------------------------------------------------
+    78                              <2> 
+    79                              <2> ;****************************************************************************************;
+    80                              <2> ; Global Descriptor Table (GDT)                                                          ;
+    81                              <2> ;****************************************************************************************;
+    82                              <2> ; The Global Descriptor Table (GDT) is a data structure used by x86-family processors    ;
+    83                              <2> ; (starting with the 80286) in order to define the characteristics of the various memory ;
+    84                              <2> ; areas (segments) used during program execution, including the base address, the size,  ;
+    85                              <2> ; and access privileges like executability and writability.                              ;
+    86                              <2> ;****************************************************************************************;
+    87                              <2> GDT:
+    88                              <2>     .Null:
+    89 0000046B 0000000000000000    <2>         dq 0x0000000000000000        ; Null Descriptor
+    90                              <2>     .Code:
+    91 00000473 00000000009A2000    <2>         dq 0x00209A0000000000        ; 64-bit code descriptor (exec/read)
+    92 0000047B 0000000000920000    <2>         dq 0x0000920000000000        ; 64-bit data descriptor (read/write)
+    93 00000483 90                  <2>      ALIGN 4
+    94 00000484 0000                <2>         dw 0                         ; padding (to make the AoGDT field aligned a 4byte boundary)
+    95                              <2> 
+    96                              <2>     .Pointer:
+    97 00000486 1A00                <2>         dw $ - GDT - 1               ; 16-bit size (limit) of GDT.
+    98 00000488 [6B040000]          <2>         dd GDT                       ; 32-bit Base Address of GDT. (CPU will zero extend to 64-bit)
+    99                              <2> 
+   100                              <2> 
+   101                              <2> ;---Code------------------------------------------------------------------------
+   102                              <2> Prepare_paging:
+   103                              <2> ;*******************************************************************************************;
+   104                              <2> ; Prepare paging                                                                            ;
+   105                              <2> ;-------------------------------------------------------------------------------------------;
+   106                              <2> ; ES:EDI Should point to a valid page-aligned 16KiB buffer, for the PML4, PDPT, PD and a PT.;
+   107                              <2> ; SS:ESP Should point to memory that can be used as a small (1 uint32_t) stack.             ;
+   108                              <2> ;*******************************************************************************************;
+   109 0000048C 66BF00900000        <2>     mov edi, PAGING_DATA;               ; Point edi to a free space to create the paging structures
+   110                              <2> 
+   111                              <2>     ; Zero out the 16KiB buffer. since we are doing a rep stosd, count should be bytes/4
+   112 00000492 57                  <2>     push di                             ; REP STOSD alters DI
+   113 00000493 66B900100000        <2>     mov ecx, 0x1000
+   114 00000499 6631C0              <2>     xor eax, eax
+   115 0000049C FC                  <2>     cld
+   116 0000049D F366AB              <2>     rep stosd
+   117 000004A0 5F                  <2>     pop di                              ; Get DI back
+   118                              <2> 
+   119                              <2>     ; Build the Page Map Level 4. ES:DI Points to the Page Map Lebel 4 table
+   120 000004A1 26668D850010        <2>     lea eax, [es:di + 0x1000]           ; EAX = Address of the Page Directory Pointer Table
+   121 000004A7 6683C803            <2>     or eax, PAGE_PRESENT | PAGE_WRITE   ; OR EAX with the flags (present flag, writeable flag).
+   122 000004AB 26668905            <2>     mov [es:di], eax                    ; store the value of EAX as the first PML4E
+   123                              <2> 
+   124                              <2>     ; Build the Page Directory Pointer Table
+   125 000004AF 26668D850020        <2>     lea eax, [es:di + 0x2000]           ; Put the address of the Page Directory in to EAX
+   126 000004B5 6683C803            <2>     or eax, PAGE_PRESENT | PAGE_WRITE    ; OR EAX with the flags (present flaf, writeable flag).
+   127 000004B9 266689850010        <2>     mov [es:di + 0x1000], eax           ; Store the value of EAX as the first PDPTE
+   128                              <2> 
+   129                              <2>     ; Build the Page Directory
+   130 000004BF 26668D850030        <2>     lea eax, [es:di + 0x3000]           ; put the address of the page table in to EAX
+   131 000004C5 6683C803            <2>     or eax, PAGE_PRESENT | PAGE_WRITE   ; OR EAX with the flags (present flag, writable flag).
+   132 000004C9 266689850020        <2>     mov [es:di + 0x2000], eax           ; store to value of EAX as the first PDE
+   133                              <2> 
+   134 000004CF 57                  <2>     push di                             ; save DI for the time being
+   135 000004D0 8DBD0030            <2>     lea di, [di + 0x3000]               ; point DI to the page table.
+   136 000004D4 66B803000000        <2>     mov eax, PAGE_PRESENT | PAGE_WRITE  ; Move the flags into EAX - and point it to 0x0000
+   137                              <2> 
+   138                              <2>     ; Build the Page Table.
+   139                              <2>     .LoopPageTable:
+   140 000004DA 26668905            <2>         mov [es:di], eax
+   141 000004DE 660500100000        <2>         add eax, 0x1000
+   142 000004E4 83C708              <2>         add di, 8
+   143 000004E7 663D00002000        <2>         cmp eax, 0x200000               ; If we did all 2MiB, end.
+   144 000004ED 72EB                <2>         jb .LoopPageTable
+   145                              <2> 
+   146 000004EF 5F                  <2>     pop di                              ; restore DI
+   147 000004F0 C3                  <2>     ret
+   148                              <2> 
+    69                              <1> %include "stage2/pic.asm"
+    70                              <2> ; PIC (Programmable Interrupt Controller)
+    71                              <2> 
+    72                              <2> BITS 16
+    73                              <2> 
+    74                              <2> ; --- Constants --------------------------------------------------------------------------
+    75                              <2> PIC1_COMMAND        equ 0x20               ; Command port of 1st PIC
+    76                              <2> PIC1_DATA           equ 0x21               ; Data port of 1st PIC
+    77                              <2> PIC2_COMMAND        equ 0xA0               ; Command port of 2nd PIC
+    78                              <2> PIC2_DATA           equ 0xA1               ; Data port of 2nd PIC
+    79                              <2> PIC_EOI             equ 0x20               ; EOI (End of interrupt) command (= 0x20)
+    80                              <2> 
+    81                              <2> 
+    82                              <2> ICW1_ICW            equ 0x01               ; Initialization Command Word 4 is needed
+    83                              <2> ICW1_SINGLE         equ 0x02               ; single mode (0: Cascade mode)
+    84                              <2> ICW1_INTERVAL4      equ 0x04               ; call address interval 4 (0: 8)
+    85                              <2> ICW1_LEVEL          equ 0x08               ; Level triggered mode (0: Edge mode)
+    86                              <2> ICW1_INIT           equ 0x10               ; Initialization - required!
+    87                              <2> 
+    88                              <2> 
+    89                              <2> ICW4_8086           equ 0x01               ; 8086/88 mode (0: MCS-80/85 mode)
+    90                              <2> ICW4_AUTO_EOI       equ 0x02               ; auto End of Interrupt (0: Normal EOI)
+    91                              <2> ICW4_BUF_SLAVE      equ 0x08               ; buffered mode/slave
+    92                              <2> ICW4_BUF_MASTER     equ 0x0c               ; buffered mode/master
+    93                              <2> ICW4_SFNM           equ 0x10               ; Special Fully nested mode
+    94                              <2> 
+    95                              <2> 
+    96                              <2> ; --- Code -------------------------------------------------------------------------------
+    97                              <2> Remap_PIC:
+    98                              <2> ;***************************************************************************;
+    99                              <2> ; In protected / long mode, the IRQs 0-15 conflict with the CPU exceptions  ;
+   100                              <2> ; (which are reserved up until 0x1F). It is thus recommended to change the  ;
+   101                              <2> ; PIC's offsets (remapping the PIC) so that IRQs use non-reserved  vectors. ; 
+   102                              <2> ; A common choice is to move them to the beginning of the available range:  ;
+   103                              <2> ; IRQs 0..15 -> INT 0x20..0x2F (30..47). For that, we need to set the 1st   ;
+   104                              <2> ; PIC's offset to 0x20 (32) and the 2nd's to 0x28 (40).                     ;  
+   105                              <2> ;***************************************************************************;
+   106 000004F1 50                  <2>     push ax
+   107                              <2> 
+   108                              <2>     ; Disable IRQs
+   109 000004F2 B0FF                <2>     mov al, 0xFF                           ; Out 0xFF to 0xA1 and 0x21 to mask/disable all IRQs.
+   110 000004F4 E621                <2>     out PIC1_DATA, al
+   111 000004F6 E6A1                <2>     out PIC2_DATA, al
+   112 000004F8 90                  <2>     nop
+   113 000004F9 90                  <2>     nop
+   114                              <2> 
+   115                              <2>     ; remap PIC
+   116 000004FA B011                <2>     mov al, ICW1_INIT | ICW1_ICW           ; ICW1: Send initialization command (= 0x11) to both PICs
+   117 000004FC E620                <2>     out PIC1_COMMAND, al
+   118 000004FE E6A0                <2>     out PIC2_COMMAND, al
+   119 00000500 B020                <2>     mov al, 0x20                           ; ICW2: Set vector offset of 1st PIC to 0x20 (i.e. IRQ0 => INT32)
+   120 00000502 E621                <2>     out PIC1_DATA, al
+   121 00000504 B028                <2>     mov al, 0x28                           ; ICW2: Set vector offset of 2nd PIC to 0x28 (i.e. IRQ8 => INT 40)
+   122 00000506 E6A1                <2>     out PIC2_DATA, al
+   123 00000508 B004                <2>     mov al, 4                              ; ICW3: tell 1st PIC that there is a 2nd PIC at IRQ2 (= 00000100)
+   124 0000050A E621                <2>     out PIC1_DATA, al
+   125 0000050C B002                <2>     mov al, 2                              ; ICW3: tell 2nd PIC its cascade identity (= 00000010)
+   126 0000050E E6A1                <2>     out PIC2_DATA, al
+   127 00000510 B001                <2>     mov al, ICW4_8086                      ; ICW4: Set mode to 8086/88
+   128 00000512 E621                <2>     out PIC1_DATA, al
+   129 00000514 E6A1                <2>     out PIC2_DATA, al
+   130                              <2> 
+   131 00000516 B0FF                <2>     mov al, 0xFF                           ; OCW1: we mask all interrupts (until we set a proper IDT in Kernel)
+   132 00000518 E621                <2>     out PIC1_DATA, al
+   133 0000051A E6A1                <2>     out PIC2_DATA, al
+   134                              <2> 
+   135 0000051C 58                  <2>     pop ax
+   136 0000051D C3                  <2>     ret
+   137                              <2> 
+    70                              <1> %include "stage2/longmode.asm"
+    71                              <2> BITS 16
+    72                              <2> 
+    73                              <2> ;---Code-----------------------------------------------------------------------
+    74                              <2> Is_longmode_supported:
+    75                              <2> ;********************************************************************;
+    76                              <2> ; Check if Long mode is supported                                    ;
+    77                              <2> ;--------------------------------------------------------------------;
+    78                              <2> ; Returns: eax = 0 if Long mode is NOT supported, else non-zero.     ;
+    79                              <2> ;********************************************************************;
+    80 0000051E 66B800000080        <2>     mov eax, 0x80000000             ; Test if extended processor info in available
+    81 00000524 0FA2                <2>     cpuid
+    82 00000526 663D01000080        <2>     cmp eax, 0x80000001             
+    83 0000052C 7212                <2>     jb .not_supported
+    84                              <2> 
+    85 0000052E 66B801000080        <2>     mov eax, 0x80000001             ; After calling CPUID with EAX = 0x80000001
+    86 00000534 0FA2                <2>     cpuid                           ; all AMD64 compliant processors have the longmode-capable-bit
+    87 00000536 66F7C200000020      <2>     test edx, (1 << 29)             ; (bit 29) turned on in the EDX (Extended Feature Flags)
+    88                              <2> 
+    89 0000053D 7401                <2>     jz .not_supported
+    90 0000053F C3                  <2>     ret
+    91                              <2> 
+    92                              <2> 
+    93                              <2>    .not_supported:
+    94 00000540 6631C0              <2>         xor eax, eax
+    95 00000543 C3                  <2>         ret
+    96                              <2> 
+    97                              <2> 
+    98                              <2> Enter_long_mode:
+    99                              <2> ;********************************************************************;
+   100                              <2> ; Enter long mode                                                    ;
+   101                              <2> ;********************************************************************;
+   102 00000544 66BF00900000        <2>     mov edi, PAGING_DATA            ; point edi at the PAGING_DATA
+   103 0000054A 66B8A0000000        <2>     mov eax, 10100000b              ; set the PAE and PGE bit
+   104 00000550 0F22E0              <2>     mov cr4, eax
+   105 00000553 6689FA              <2>     mov edx, edi                    ; Point CR3 at the PML4
+   106 00000556 0F22DA              <2>     mov cr3, edx                    
+   107 00000559 66B9800000C0        <2>     mov ecx, 0xC0000080             ; Read from the EFER MSR
+   108 0000055F 0F32                <2>     rdmsr                   
+   109 00000561 660D00010000        <2>     or eax, 0x00000100              ; Set the LME bit
+   110 00000567 0F30                <2>     wrmsr
+   111 00000569 0F20C3              <2>     mov ebx, cr0                    ; activate long mode
+   112 0000056C 6681CB01000080      <2>     or ebx, 0x80000001              ; by enabling paging and protection simultaneously
+   113 00000573 0F22C3              <2>     mov cr0, ebx
+   114 00000576 0F0116[8604]        <2>     lgdt [GDT.Pointer]              ; load GDT.Pointer
+   115 0000057B EA[1606]0800        <2>     jmp CODE_SEG:kernel_entry             ; Load cs with 64 bit segment and flush the instruction cache.
+   116                              <2> 
+    12 00000580 00<rep 80h>                 align 512, db 0    
+    13                                  stage2_end:
+    14                                  
+    15                                  kernel_start:
+    16                                  kernel_entrypoint:
+    17 00000600 EA[1606]0009                jmp 0x0900:kernel_entry
+    18                                      %include "kernel/kernel.asm"
+    19                              <1> BITS 64                 ; We have entered the long mode! :)
+    20                              <1> 
+    21                              <1> ; --- Define -----------------------------------------------------
+    22                              <1> %define DATA_SEG         0x0010
+    23                              <1> %define VRAM             0xB8000
+    24                              <1> 
+    25                              <1> 
+    26 00000605 0F00                <1> entering_kernel_message dw 15
+    27 00000607 456E746572696E6720- <1> db 'Entering kernel'
+    27 00000610 6B65726E656C        <1>
+    28                              <1> 
+    29                              <1> ; --- Code -------------------------------------------------------
+    30                              <1> kernel_entry:
+    31                              <1> ;********************************************************************;
+    32                              <1> ; Just some dummy code for now                                       ;
+    33                              <1> ;********************************************************************;
+    34                              <1>     ; set all segment registers to DATA_SEG
+    35 00000616 66BE[0506]          <1>     mov si, entering_kernel_message
+    36 0000061A E8F4FAFFFF          <1>     call Real_mode_println
+    37                              <1> 
+    38 0000061F 66B81000            <1>     mov ax, DATA_SEG
+    39 00000623 8ED8                <1>     mov ds, ax
+    40 00000625 8EC0                <1>     mov es, ax
+    41 00000627 8EE0                <1>     mov fs, ax
+    42 00000629 8EE8                <1>     mov gs, ax
+    43 0000062B 8ED0                <1>     mov ss, ax
+    44                              <1> 
+    45                              <1>     ; set EDI to point to Video RAM (0xB8000)
+    46 0000062D BF00800B00          <1>     mov edi, VRAM
+    47                              <1> 
+    48                              <1>     ; Print "Hello World!"
+    49 00000632 48B8481F651F6C1F6C- <1>     mov rax,        0x1F6C1F6C1F651F48
+    49 0000063B 1F                  <1>
+    50 0000063C 67488907            <1>     mov [edi],     rax
+    51 00000640 48B86F1F201F571F6F- <1>     mov rax,        0x1F6F1F571F201F6F
+    51 00000649 1F                  <1>
+    52 0000064A 6748894708          <1>     mov [edi + 8],  rax
+    53 0000064F 48B8721F6C1F641F21- <1>     mov rax,        0x1F211F641F6C1F72
+    53 00000658 1F                  <1>
+    54 00000659 6748894710          <1>     mov [edi + 16], rax
+    55                              <1> 
+    56 0000065E F4                  <1>     hlt
+    57 0000065F EBFE                <1>     jmp $
+    58                              <1> 
+    59                              <1>     section .bss
+    60                              <1>     section .data 
+    61                              <1> 
+    19                                      align 512, db 0
+    20                                  kernel_end:

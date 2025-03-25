@@ -55,7 +55,7 @@ Prepare_paging:
 
     ; Build the Page Directory Pointer Table
     lea eax, [es:di + 0x2000]           ; Put the address of the Page Directory in to EAX
-    or eax, PAGE_PRESET | PAGE_WRITE    ; OR EAX with the flags (present flaf, writeable flag).
+    or eax, PAGE_PRESENT | PAGE_WRITE    ; OR EAX with the flags (present flaf, writeable flag).
     mov [es:di + 0x1000], eax           ; Store the value of EAX as the first PDPTE
 
     ; Build the Page Directory
