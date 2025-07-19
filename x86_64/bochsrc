@@ -1,0 +1,53 @@
+# Bochs configuration file for HellOS
+# Memory settings
+megs: 512
+
+# ROM and VGA BIOS
+romimage: file=/usr/share/bochs/BIOS-bochs-latest
+vgaromimage: file=/usr/share/bochs/VGABIOS-lgpl-latest
+
+# Boot from hard disk
+boot: disk
+
+# Hard disk image
+ata0-master: type=disk, path="build/simple_test.img", mode=flat, cylinders=20, heads=16, spt=63
+
+# Display settings
+display_library: rfb, options="timeout=0"
+# For WSL, we'll use VNC/RFB with no timeout
+
+# Logging settings for debugging
+log: bochs.log
+logprefix: %t%e%d
+debug: action=report
+info: action=report
+error: action=report
+panic: action=report
+
+# CPU settings
+cpu: count=1, ips=4000000, model=bx_generic, reset_on_triple_fault=1
+
+# Clock settings
+clock: sync=realtime, time0=local
+
+# Keyboard and mouse
+keyboard: type=mf, serial_delay=250, paste_delay=100000, user_shortcut=none
+mouse: type=ps2, enabled=0
+
+# Sound (disabled for now)
+sound: waveoutdrv=dummy
+
+# Network (disabled for now)
+ne2k: enabled=0
+
+# Serial port for debugging output
+com1: enabled=1, mode=file, dev=bochs_serial.log
+
+# Parallel port (disabled)
+parport1: enabled=0
+
+# Magic breakpoint (useful for debugging)
+magic_break: enabled=1
+
+# Debugger interface
+debugger_log: bochs_debug.log 

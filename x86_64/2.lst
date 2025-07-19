@@ -170,10 +170,59 @@
     90 0000011D 5E                  <2>     pop si
     91 0000011E C3                  <2>     ret
     92                              <2> 
+    93                              <2> BITS 64
+    94                              <2> 
+    95                              <2> ; --- Initialized data for Long Mode ----------------------------------------
+    96                              <2> 
+    97                              <2> ; Video memory location
+    98                              <2> %define VRAM 0xB8000
+    99                              <2> 
+   100                              <2> ; --- Long mode functions ---------------------------------------------------
+   101                              <2> 
+   102                              <2> Long_mode_print:
+   103                              <2> ;*********************************************************************************;
+   104                              <2> ; Prints a string in long mode by writing directly to video memory                ;
+   105                              <2> ;---------------------------------------------------------------------------------;
+   106                              <2> ; rsi: pointer to string (first 16 bits = the number of characters in the string) ;
+   107                              <2> ;*********************************************************************************;
+   108 0000011F 50                  <2>     push rax
+   109 00000120 51                  <2>     push rcx
+   110 00000121 57                  <2>     push rdi
+   111 00000122 480FB70E            <2>     movzx rcx, word [rsi]   ; Zero-extend 16-bit length into 64-bit rcx
+   112 00000126 4883C602            <2>     add rsi, 2              ; Move past the length bytes
+   113 0000012A BF00800B00          <2>     mov rdi, VRAM           ; Point to video memory
+   114                              <2>     .string_loop:
+   115 0000012F AC                  <2>         lodsb               ; Load byte from [rsi] into al, increment rsi
+   116 00000130 AA                  <2>         stosb               ; Store al into [rdi], increment rdi
+   117 00000131 C60707              <2>         mov byte [rdi], 0x07 ; Set attribute (light gray on black)
+   118 00000134 48FFC7              <2>         inc rdi
+   119 00000137 E2F6                <2>     loop .string_loop
+   120 00000139 5F                  <2>     pop rdi
+   121 0000013A 59                  <2>     pop rcx
+   122 0000013B 58                  <2>     pop rax
+   123 0000013C C3                  <2>     ret
+   124                              <2> 
+   125                              <2> Long_mode_println:
+   126                              <2> ;***********************************************************;
+   127                              <2> ; Prints a string (in long mode) and a newline (\r\n)       ;
+   128                              <2> ;-----------------------------------------------------------;
+   129                              <2> ; rsi: pointer to string                                    ;
+   130                              <2> ; (first 16 bits = the number of characters in the string.) ;
+   131                              <2> ;***********************************************************;
+   132 0000013D 56                  <2>     push rsi
+   133 0000013E E8DCFFFFFF          <2>     call Long_mode_print
+   134 00000143 48BE-               <2>     mov rsi, newline         ; newline is still defined with 16-bit length
+   134 00000145 [E900000000000000]  <2>
+   135 0000014D E8CDFFFFFF          <2>     call Long_mode_print
+   136 00000152 5E                  <2>     pop rsi
+   137 00000153 C3                  <2>     ret
+   138                              <2> 
+   139                              <2> ; Switch back to 16-bit mode if needed
+   140                              <2> BITS 16bc
     43                              <1> 
     44                              <1> 
     45                              <1> 
-    46 0000011F 00<rep DFh>         <1> times 510-($-$$) db 0 ; Padding as always
+    46 00000154 00<rep AAh>         <1> times 510-($-$$) db 0 ; Padding as always
     47 000001FE 55                  <1> db 0x55                 ; Boot signature byte 1
     48 000001FF AA                  <1> db 0xAA                 ; Boot signature byte 2
     49                              <1> ; Last two Bytes
@@ -677,22 +726,32 @@
     99                              <2> ;********************************************************************;
    100                              <2> ; Enter long mode                                                    ;
    101                              <2> ;********************************************************************;
-   102 00000544 66BF00900000        <2>     mov edi, PAGING_DATA            ; point edi at the PAGING_DATA
-   103 0000054A 66B8A0000000        <2>     mov eax, 10100000b              ; set the PAE and PGE bit
-   104 00000550 0F22E0              <2>     mov cr4, eax
-   105 00000553 6689FA              <2>     mov edx, edi                    ; Point CR3 at the PML4
-   106 00000556 0F22DA              <2>     mov cr3, edx                    
-   107 00000559 66B9800000C0        <2>     mov ecx, 0xC0000080             ; Read from the EFER MSR
-   108 0000055F 0F32                <2>     rdmsr                   
-   109 00000561 660D00010000        <2>     or eax, 0x00000100              ; Set the LME bit
-   110 00000567 0F30                <2>     wrmsr
-   111 00000569 0F20C3              <2>     mov ebx, cr0                    ; activate long mode
-   112 0000056C 6681CB01000080      <2>     or ebx, 0x80000001              ; by enabling paging and protection simultaneously
-   113 00000573 0F22C3              <2>     mov cr0, ebx
-   114 00000576 0F0116[8604]        <2>     lgdt [GDT.Pointer]              ; load GDT.Pointer
-   115 0000057B EA[1606]0800        <2>     jmp CODE_SEG:kernel_entry             ; Load cs with 64 bit segment and flush the instruction cache.
-   116                              <2> 
-    12 00000580 00<rep 80h>                 align 512, db 0    
+   102                              <2> ; Set up PAE and PGE
+   103 00000544 66B8A0000000        <2>     mov eax, 0xA0         ; PAE (bit 5) + PGE (bit 7)
+   104 0000054A 0F22E0              <2>     mov cr4, eax
+   105                              <2> 
+   106                              <2>     ; Point CR3 to PML4
+   107 0000054D 66B800900000        <2>     mov eax, PAGING_DATA
+   108 00000553 0F22D8              <2>     mov cr3, eax
+   109                              <2> 
+   110                              <2>     ; Enable LME in EFER
+   111 00000556 66B9800000C0        <2>     mov ecx, 0xC0000080
+   112 0000055C 0F32                <2>     rdmsr
+   113 0000055E 660D00010000        <2>     or eax, 0x100         ; LME (bit 8)
+   114 00000564 0F30                <2>     wrmsr
+   115                              <2> 
+   116                              <2>     ; Load GDT *before* enabling paging
+   117 00000566 0F0116[8604]        <2>     lgdt [GDT.Pointer]
+   118                              <2> 
+   119                              <2>     ; Enable paging and protected mode
+   120 0000056B 0F20C0              <2>     mov eax, cr0
+   121 0000056E 660D01000080        <2>     or eax, 0x80000001    ; Paging + Protected Mode
+   122 00000574 0F22C0              <2>     mov cr0, eax
+   123                              <2> 
+   124                              <2>     ; Far jump to 64-bit mode
+   125 00000577 EA[1606]0800        <2>     jmp CODE_SEG:kernel_entry
+   126                              <2> 
+    12 0000057C 00<rep 84h>                 align 512, db 0    
     13                                  stage2_end:
     14                                  
     15                                  kernel_start:
@@ -717,7 +776,7 @@
     33                              <1> ;********************************************************************;
     34                              <1>     ; set all segment registers to DATA_SEG
     35 00000616 66BE[0506]          <1>     mov si, entering_kernel_message
-    36 0000061A E8F4FAFFFF          <1>     call Real_mode_println
+    36 0000061A E81EFBFFFF          <1>     call Long_mode_println
     37                              <1> 
     38 0000061F 66B81000            <1>     mov ax, DATA_SEG
     39 00000623 8ED8                <1>     mov ds, ax

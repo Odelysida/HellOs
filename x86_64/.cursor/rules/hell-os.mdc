@@ -1,0 +1,201 @@
+description: A comprehensive ruleset for HellOS, the Infernal Operating System, detailing its architecture, features, and implementation phases.
+globs:
+- '**/*'
+alwaysApply: false
+---
+# HellOS Ruleset
+
+## Design Philosophy
+HellOS is a modern x86_64 operating system inspired by TempleOS with a hellish aesthetic, emphasizing simplicity, performance, and a unique user experience through infernal theming and proprietary technologies.
+
+## Core Specifications
+
+### Architecture
+- **Target**: x86_64 (64-bit)
+- **Boot Method**: UEFI
+- **Kernel Type**: Monolithic with modular drivers
+- **Memory Model**: Flat memory model with paging
+
+### Graphics System
+- **Resolution**: 680x480 pixels
+- **Color Depth**: 32 colors (5-bit palette)
+- **Rendering**: Custom proprietary graphics engine
+- **Theme**: Hellish aesthetics (reds, blacks, oranges, fire effects)
+
+### Audio System
+- **Channels**: 3 simultaneous audio channels
+- **Waveforms**: Square, Sine, Sawtooth
+- **Sample Rate**: 44.1 kHz
+- **Bit Depth**: 16-bit
+
+### Network Stack
+- **Protocols**: TCP, UDP
+- **Sockets**: BSD-style socket API
+- **Ethernet**: Basic Ethernet driver support
+- **IP**: IPv4 support
+
+## System Architecture
+
+### Boot Process
+1. **UEFI Bootloader**: Initialize graphics, load kernel
+2. **Kernel Init**: Memory management, interrupt handlers
+3. **Driver Loading**: Graphics, audio, network drivers
+4. **Shell Launch**: Multi-window infernal shell
+
+### Memory Management
+- **Paging**: 4KB pages with 4-level page tables
+- **Heap**: Custom heap allocator
+- **Stack**: Per-process stacks with guard pages
+- **Virtual Memory**: Full virtual memory support
+
+### Process Management
+- **Scheduling**: Round-robin with priority levels
+- **IPC**: Message passing between processes
+- **Threads**: Cooperative threading model
+
+## Hellish Theme Guidelines
+
+### Visual Design
+- **Primary Colors**: #FF0000 (Hell Red), #000000 (Void Black), #FF4500 (Flame Orange)
+- **Secondary Colors**: #8B0000 (Dark Red), #2F0000 (Deep Crimson)
+- **Fonts**: Gothic/Medieval style fonts
+- **Icons**: Demonic symbols, flames, skulls, pentagrams
+
+### Audio Design
+- **System Sounds**: Demonic growls, fire crackling, metal clanging
+- **Startup Sound**: Ominous organ chord progression
+- **Error Sounds**: Screams, thunder, demonic laughter
+
+### Naming Conventions
+- **Processes**: Demons, Devils, Infernal beings
+- **Files**: Hellish terminology (brimstone, sulfur, abyss)
+- **Commands**: Latin/demonic names (infernus, daemon, maleficus)
+
+## File System
+
+### Structure
+```
+/abyss/          # Root directory
+├── demons/      # System processes
+├── souls/       # User data
+├── grimoire/    # System configuration
+├── artifacts/   # Applications
+├── torment/     # Temporary files
+└── purgatory/   # Recycle bin
+```
+
+### File Types
+- `.soul` - Executable files
+- `.hex` - Configuration files
+- `.rune` - Script files
+- `.tome` - Document files
+
+## Command Line Interface
+
+### Shell: "Infernal Shell" (InfSh)
+- **Prompt**: `🔥 [current_realm] λ `
+- **Commands**: Hellish-themed equivalents of standard commands
+  - `summon` (run/execute)
+  - `banish` (kill/terminate)
+  - `scry` (list/view)
+  - `conjure` (create)
+  - `purge` (delete)
+
+## Window Manager: "Pandemonium WM"
+
+### Features
+- **Multi-window**: Overlapping windows with hellish borders
+- **Transparency**: Flame-like transparency effects
+- **Animations**: Fire and smoke transition effects
+- **Themes**: Multiple hellish themes (Inferno, Abyss, Purgatory)
+
+### Window Decorations
+- **Borders**: Flame-like borders with ember particles
+- **Title Bars**: Gothic style with demonic symbols
+- **Buttons**: Skull and crossbones for close, minimize, maximize
+
+## Development Guidelines
+
+### Code Style
+- **Language**: Assembly for low-level, C for high-level
+- **Naming**: snake_case for C, descriptive names
+- **Comments**: Extensive documentation
+- **Error Handling**: Comprehensive error codes with hellish names
+
+### Build System
+- **Compiler**: GCC cross-compiler for x86_64
+- **Assembler**: NASM for assembly code
+- **Linker**: Custom linker script
+- **Build Tool**: Make with custom Makefile
+
+## Security Model
+
+### Permissions
+- **Souls**: User-level permissions
+- **Demons**: System-level permissions
+- **Overlords**: Administrator permissions
+- **The Dark Lord**: Root/kernel permissions
+
+### Access Control
+- **Realms**: Isolated execution environments
+- **Wards**: Protection mechanisms
+- **Seals**: Cryptographic security
+
+## Performance Targets
+
+### Boot Time
+- **Cold Boot**: < 10 seconds
+- **Warm Boot**: < 5 seconds
+
+### Memory Usage
+- **Kernel**: < 16MB base footprint
+- **Graphics**: < 8MB VRAM usage
+- **Audio**: < 2MB buffer space
+
+### Responsiveness
+- **UI Response**: < 50ms for basic operations
+- **Audio Latency**: < 10ms
+- **Network**: Standard TCP/IP performance
+
+## Implementation Phases
+
+### Phase 1: Foundation (Current)
+- Bootloader and kernel base
+- Basic memory management
+- Interrupt handling
+
+### Phase 2: Drivers
+- Graphics driver implementation
+- Audio driver implementation
+- Basic input/output
+
+### Phase 3: System Services
+- Process management
+- File system
+- Network stack
+
+### Phase 4: User Interface
+- Window manager
+- Shell implementation
+- Basic applications
+
+### Phase 5: Polish
+- Theming and effects
+- Performance optimization
+- Documentation
+
+## Quality Assurance
+
+### Testing Strategy
+- **Unit Tests**: For individual components
+- **Integration Tests**: For system interactions
+- **Performance Tests**: For meeting targets
+- **Compatibility Tests**: For hardware support
+
+### Documentation
+- **Code Documentation**: Inline comments and headers
+- **User Manual**: "The Infernal Grimoire"
+- **Developer Guide**: "Summoning Demons: A Developer's Guide"
+
+---
+*"In the depths of silicon and fire, HellOS rises to torment the digital realm."*

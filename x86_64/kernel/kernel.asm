@@ -15,7 +15,7 @@ kernel_entry:
 ;********************************************************************;
     ; set all segment registers to DATA_SEG
     mov si, entering_kernel_message
-    call Long_mode_print
+    call Long_mode_println
 
     mov ax, DATA_SEG
     mov ds, ax

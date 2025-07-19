@@ -15,5 +15,5 @@ nasm -f bin -o os.asm -o os.bin
 
 ### - Run QEMU
 ```
-qemu-system-x84_64 -fda os.bin
+qemu-system-x86_64 -fda os.bin
 ```

@@ -1,0 +1,105 @@
+# Default ignored files
+/shelf/
+/workspace.xml
+# Editor-based HTTP Client requests
+/httpRequests/
+# Datasource local storage ignored files
+/dataSources/
+/dataSources.local.xml
+
+# HellOS Project Specific Ignores
+
+# Build artifacts and binaries
+build/
+*.bin
+*.elf
+*.iso
+*.o
+*.obj
+*.exe
+*.out
+*.app
+
+# Assembly listings and debug info
+*.lst
+*.map
+*.sym
+*.dbg
+
+# Log files
+*.log
+qemu.log
+bochs.log
+bochs_run.log
+bochs_output.log
+debug_serial.log
+serial.log
+test_output.log
+debug.log
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# IDE and editor files
+.vscode/
+.idea/
+*.sublime-*
+*.code-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Development and testing files
+test_*.sh
+run_*.sh
+boot_listing.txt
+2.lst
+read_this
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+
+# Compiled tools
+tools/debug_viewer
+tools/memory_analyzer
+tools/boot_checker
+tools/*.exe
+
+# Distribution files
+.dist/
+dist/
+release/
+
+# Cache files
+.cache/
+*.cache
+
+# Core dumps
+core
+core.*
+*.core
+
+# Virtual machine files
+*.vmdk
+*.vdi
+*.vhd
+*.qcow2
+
+# Bochs specific files
+bochsrc.bxrc
+*.bxrc
